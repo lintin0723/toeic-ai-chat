@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TOEIC AI Chat - Login</title>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <style>
         body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f4f4f4; }
         #app { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 320px; }
@@ -22,21 +21,27 @@
     </style>
 </head>
 <body>
-
 <div id="app">
     <h1>Sign In</h1>
-    <form @submit.prevent="login">
+    <!-- THE FIX IS HERE: We use a standard HTML form submission that Spring Security expects -->
+    <form action="/login" method="post">
         <div class="form-group">
             <label for="username">Username</label>
-            <input type="text" id="username" v-model="username" required>
+            <!-- The 'name' attribute is critical for Spring Security -->
+            <input type="text" id="username" name="username" required>
         </div>
         <div class="form-group">
             <label for="password">Password</label>
-            <input type="password" id="password" v-model="password" required>
+            <input type="password" id="password" name="password" required>
         </div>
         <button type="submit">Login</button>
     </form>
-    <p v-if="message" class="message error">{{ message }}</p>
+
+    <!-- Display error message if the URL has ?error=true -->
+    <div v-if="showError" class="message error">
+        Invalid username or password.
+    </div>
+
     <div class="register-link">
         <p>Don't have an account? <a href="/register.html">Register</a></p>
     </div>
@@ -48,34 +53,18 @@
     createApp({
         data() {
             return {
-                username: '',
-                password: '',
-                message: ''
+                showError: false
             }
         },
-        methods: {
-            login() {
-                this.message = '';
-                const loginData = {
-                    username: this.username,
-                    passwordHash: this.password
-                };
-
-                axios.post('/api/auth/login', loginData)
-                    .then(response => {
-                        window.location.href = '/dashboard.html'; // Placeholder for now
-                    })
-                    .catch(error => {
-                        if (error.response && error.response.data) {
-                            this.message = error.response.data;
-                        } else {
-                            this.message = 'Invalid username or password.';
-                        }
-                    });
+        // This lifecycle hook runs when the component is mounted
+        mounted() {
+            // Check the URL for the error parameter that Spring Security adds on failure
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('error')) {
+                this.showError = true;
             }
         }
     }).mount('#app');
 </script>
-
 </body>
 </html>

@@ -1,0 +1,95 @@
+version: '3.8'
+
+networks:
+  toeic-app-net:
+    driver: bridge
+
+services:
+  gemma:
+    image: ollama/ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    entrypoint: /bin/sh
+    command: -c "ollama serve & sleep 10 && if ! ollama list | grep -q 'gemma:7b'; then ollama pull gemma:7b; fi && tail -f /dev/null"
+    networks:
+      - toeic-app-net
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/${DB_DATABASE}?serverTimezone=Asia/Taipei&characterEncoding=utf-8
+      SPRING_DATASOURCE_USERNAME: ${DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      OLLAMA_API_URL: http://gemma:11434/api/generate
+    depends_on:
+      db:
+        condition: service_healthy
+      gemma:
+        condition: service_started
+    networks:
+      - toeic-app-net
+
+  db:
+    image: mysql:8.0
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: ${DB_DATABASE}
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "${DB_USER}", "-p${DB_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - toeic-app-net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - toeic-app-net
+
+  ngrok:
+    image: ngrok/ngrok:latest
+    ports:
+      - "4040:4040"
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
+    command: http frontend:80
+    depends_on:
+      - frontend
+    networks:
+      - toeic-app-net
+
+  ngrok-helper:
+    image: alpine:3.18
+    depends_on:
+      - ngrok
+    # THE FIX IS HERE: Mount the script from the host and execute it directly.
+    # This avoids any potential YAML parsing issues with complex inline scripts.
+    volumes:
+      - ./ngrok-helper-script.sh:/run.sh
+    command: sh /run.sh
+    networks:
+      - toeic-app-net
+
+volumes:
+  mysql-data:
+  ollama-data:

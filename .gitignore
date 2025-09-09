@@ -32,3 +32,6 @@ target/
 
 # Maven
 .mvn/
+
+# Environment variables file
+.env

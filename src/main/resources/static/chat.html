@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TOEIC AI Tutor</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; background-color: #f0f2f5; }
+        #app { display: flex; flex-direction: column; height: 100vh; }
+        .header { background-color: #fff; padding: 1rem; text-align: center; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { margin: 0; font-size: 1.5rem; }
+        .logout-form button { background-color: #dc3545; color: white; border: none; padding: 0.5rem 1rem; border-radius: 5px; cursor: pointer; }
+        .chat-container { flex-grow: 1; overflow-y: auto; padding: 1rem; }
+        .message { margin-bottom: 1rem; display: flex; }
+        .message.user { justify-content: flex-end; }
+        .message.ai { justify-content: flex-start; }
+        .message-bubble { max-width: 70%; padding: 0.8rem 1rem; border-radius: 18px; line-height: 1.5; }
+        .message.user .message-bubble { background-color: #007bff; color: white; }
+        .message.ai .message-bubble { background-color: #e9e9eb; color: #333; }
+        .input-area { display: flex; padding: 1rem; background-color: #fff; border-top: 1px solid #ddd; }
+        .input-area input { flex-grow: 1; padding: 0.8rem; border: 1px solid #ccc; border-radius: 18px; font-size: 1rem; }
+        .input-area button { background-color: #007bff; color: white; border: none; padding: 0.8rem 1.5rem; margin-left: 0.5rem; border-radius: 18px; cursor: pointer; font-size: 1rem; }
+    </style>
+</head>
+<body>
+<div id="app">
+    <div class="header">
+        <h1>TOEIC AI Tutor</h1>
+        <form class="logout-form" action="/logout" method="post">
+            <button type="submit">Logout</button>
+        </form>
+    </div>
+
+    <div class="chat-container" ref="chatContainer">
+        <div v-for="msg in messages" :class="['message', msg.sender]">
+            <div class="message-bubble">{{ msg.text }}</div>
+        </div>
+    </div>
+
+    <div class="input-area">
+        <input type="text" v-model="newMessage" @keyup.enter="sendMessage" placeholder="Ask me anything about TOEIC...">
+        <button @click="sendMessage">Send</button>
+    </div>
+</div>
+
+<script>
+    const { createApp, ref, nextTick } = Vue;
+
+    createApp({
+        data() {
+            return {
+                newMessage: '',
+                messages: [
+                    { sender: 'ai', text: 'Hello! I am your TOEIC AI Tutor. How can I help you prepare for the test today?' }
+                ]
+            }
+        },
+        methods: {
+            async sendMessage() {
+                const userMessage = this.newMessage.trim();
+                if (!userMessage) return;
+
+                this.messages.push({ sender: 'user', text: userMessage });
+                this.newMessage = '';
+                this.scrollToBottom();
+
+                try {
+                    // Add a thinking indicator
+                    this.messages.push({ sender: 'ai', text: 'Thinking...' });
+                    this.scrollToBottom();
+
+                    const response = await axios.post('/api/chat', { prompt: userMessage });
+                    
+                    // Remove the thinking indicator
+                    this.messages.pop();
+
+                    this.messages.push({ sender: 'ai', text: response.data });
+                    this.scrollToBottom();
+
+                } catch (error) {
+                    this.messages.pop(); // Remove thinking indicator
+                    this.messages.push({ sender: 'ai', text: 'Sorry, I encountered an error. Please try again.' });
+                    console.error('Error fetching chat response:', error);
+                    this.scrollToBottom();
+                }
+            },
+            scrollToBottom() {
+                nextTick(() => {
+                    const container = this.$refs.chatContainer;
+                    container.scrollTop = container.scrollHeight;
+                });
+            }
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>
